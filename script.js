@@ -88,6 +88,32 @@ async function requestNotificationPermission() {
     return result === 'granted';
 }
 
+// S'abonner aux Web Push et envoyer l'abonnement au Worker Cloudflare
+async function subscribeToPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+
+    if (!sub) {
+        sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: 'BFE0UtWdKTVEdgzUC4xVeXGg9mvtQ5EgzUGHuyX1Uw7xJxOkvyOnxesccKt0ykSpnnDjVxF_FncwnurGq45s8ac'
+        });
+
+        // Envoyer l'abonnement au Worker Cloudflare
+        try {
+            await fetch('https://todo-notification-worker.todolist-feyem.workers.dev/subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscription: sub.toJSON() })
+            });
+        } catch (e) {
+            console.error('Erreur envoi abonnement push', e);
+        }
+    }
+}
+
 // Calcule le timestamp de notification selon le choix de rappel et la due date
 function computeNotifyAt(dueDate, reminder) {
     if (!dueDate || reminder === 'none') return null;
@@ -183,9 +209,12 @@ async function loadTasks() {
     sortTasks();
     renderTasks();
 
-    // Demander la permission et programmer les rappels
+    // Demander la permission et s'abonner aux push
     const granted = await requestNotificationPermission();
-    if (granted) syncRemindersToSW();
+    if (granted) {
+        await subscribeToPush();
+        syncRemindersToSW();
+    }
 }
 
 // ---------------------------------------------------------------------------

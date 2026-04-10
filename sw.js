@@ -108,10 +108,31 @@ self.addEventListener('notificationclick', event => {
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      if (clientList.length > 0) {
-        return clientList[0].focus();
-      }
+      if (clientList.length > 0) return clientList[0].focus();
       return clients.openWindow('/');
+    })
+  );
+});
+
+// Réception des push notifications depuis Cloudflare Worker
+self.addEventListener('push', event => {
+  if (!event.data) return;
+
+  let data;
+  try { data = event.data.json(); }
+  catch { data = { title: '📋 Todo List', body: event.data.text() }; }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || '📋 Todo List — Rappel', {
+      body: data.body,
+      icon: '/icons/icon.svg',
+      badge: '/icons/icon.svg',
+      tag: data.tag || 'todo-reminder',
+      requireInteraction: true,
+      actions: [
+        { action: 'open', title: 'Ouvrir' },
+        { action: 'dismiss', title: 'Ignorer' }
+      ]
     })
   );
 });
