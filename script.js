@@ -6,8 +6,8 @@ let isDarkMode = false;
 // Queue offline — tâches en attente de sync vers Firestore
 // ---------------------------------------------------------------------------
 
-const OFFLINE_QUEUE_KEY = 'offline_queue';
-const LOCAL_TASKS_KEY   = 'local_tasks';
+// const OFFLINE_QUEUE_KEY = 'offline_queue';
+// const LOCAL_TASKS_KEY   = 'local_tasks';
 
 function getOfflineQueue() {
     try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
