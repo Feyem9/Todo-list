@@ -1,0 +1,26 @@
+{
+  "name": "todo-list",
+  "version": "1.0.0",
+  "main": "script.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Feyem9/Todo-list.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Feyem9/Todo-list/issues"
+  },
+  "homepage": "https://github.com/Feyem9/Todo-list#readme",
+  "description": "",
+  "devDependencies": {
+    "jsdom": "^29.0.2"
+  }
+}

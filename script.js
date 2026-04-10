@@ -2,10 +2,23 @@ let tasks = [];
 let currentSort = 'priority';
 let isDarkMode = false;
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function loadTasks() {
     const stored = localStorage.getItem('tasks');
     if (stored) {
-        tasks = JSON.parse(stored);
+        try {
+            tasks = JSON.parse(stored);
+        } catch (e) {
+            tasks = [];
+        }
     }
     const darkModeStored = localStorage.getItem('darkMode');
     if (darkModeStored === 'true') {
@@ -14,6 +27,7 @@ function loadTasks() {
         document.getElementById('dark-mode-btn').textContent = '☀️ Light Mode';
     }
     sortTasks();
+    renderTasks();
 }
 
 function saveTasks() {
@@ -70,18 +84,46 @@ function renderTasks(filteredTasks = tasks) {
     filteredTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
         taskEl.className = `task ${task.status === 'completed' ? 'completed' : ''}`;
-        taskEl.innerHTML = `
-            <h3>${task.title}</h3>
-            <p>${task.desc}</p>
-            <p class="priority ${task.priority}"><span class="priority-icon"></span>${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority</p>
+        taskEl.dataset.id = task.id;
+
+        // Card content (no buttons)
+        const cardContent = document.createElement('div');
+        cardContent.innerHTML = `
+            <h3>${escapeHtml(task.title)}</h3>
+            <p>${escapeHtml(task.desc)}</p>
+            <p class="priority ${task.priority}"><span class="priority-icon" aria-hidden="true"></span>${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority</p>
             <p class="due-date">Due: ${task.dueDate || 'No due date'}</p>
             <p class="status ${task.status}">${task.status.charAt(0).toUpperCase() + task.status.slice(1)}</p>
-            <div class="task-buttons">
-                <button class="complete-btn" onclick="toggleComplete(${task.id})">${task.status === 'completed' ? 'Mark Pending' : 'Mark Completed'}</button>
-                <button class="delete-btn" onclick="confirmDelete(${task.id})">Delete</button>
-            </div>
         `;
+        while (cardContent.firstChild) {
+            taskEl.appendChild(cardContent.firstChild);
+        }
+
+        // Buttons via createElement
+        const taskButtons = document.createElement('div');
+        taskButtons.className = 'task-buttons';
+
+        const completeBtn = document.createElement('button');
+        completeBtn.className = 'complete-btn';
+        completeBtn.textContent = task.status === 'completed' ? 'Mark Pending' : 'Mark Completed';
+        completeBtn.setAttribute('aria-label',
+            task.status === 'completed'
+                ? `Marquer comme en attente : ${escapeHtml(task.title)}`
+                : `Marquer comme complétée : ${escapeHtml(task.title)}`
+        );
+        completeBtn.addEventListener('click', () => toggleComplete(task.id));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.setAttribute('aria-label', `Supprimer : ${escapeHtml(task.title)}`);
+        deleteBtn.addEventListener('click', () => confirmDelete(task.id));
+
+        taskButtons.appendChild(completeBtn);
+        taskButtons.appendChild(deleteBtn);
+        taskEl.appendChild(taskButtons);
         tasksContainer.appendChild(taskEl);
+
         // Stagger animation
         setTimeout(() => {
             taskEl.style.opacity = '1';
@@ -95,9 +137,15 @@ function addTask() {
     const desc = document.getElementById('task-desc').value.trim();
     const priority = document.getElementById('task-priority').value;
     const dueDate = document.getElementById('task-due-date').value;
-    if (!title) return;
+    if (!title) {
+        const titleInput = document.getElementById('task-title');
+        titleInput.classList.add('input-error');
+        titleInput.focus();
+        setTimeout(() => titleInput.classList.remove('input-error'), 2000);
+        return;
+    }
     const task = {
-        id: Date.now(),
+        id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
         title,
         desc,
         priority,
@@ -120,10 +168,10 @@ function confirmDelete(id) {
 }
 
 function deleteTask(id) {
-    const taskEl = document.querySelector(`.task:has(button[onclick="confirmDelete(${id})"])`);
+    const taskEl = document.querySelector(`.task[data-id="${id}"]`);
     taskEl.classList.add('fade-out');
     setTimeout(() => {
-        tasks = tasks.filter(t => t.id !== id);
+        tasks = tasks.filter(t => String(t.id) !== String(id));
         saveTasks();
         renderTasks();
     }, 300);
@@ -137,7 +185,7 @@ function toggleSort() {
 }
 
 function toggleComplete(id) {
-    const task = tasks.find(t => t.id === id);
+    const task = tasks.find(t => String(t.id) === String(id));
     if (task) {
         task.status = task.status === 'completed' ? 'pending' : 'completed';
         saveTasks();
@@ -171,4 +219,3 @@ document.getElementById('dark-mode-btn').addEventListener('click', toggleDarkMod
 
 // Load and render on start
 loadTasks();
-renderTasks();

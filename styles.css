@@ -1,3 +1,7 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
 /* Global Styles */
 body {
     font-family: 'Roboto', sans-serif;
@@ -539,4 +543,9 @@ body.dark-mode .empty-state p {
     .stat-number {
         font-size: 1.8rem;
     }
+}
+
+.input-error {
+    border-color: #e53e3e !important;
+    box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.2) !important;
 }

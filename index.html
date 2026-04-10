@@ -34,7 +34,7 @@
         </header>
         <div class="add-task">
             <label for="task-title">Task Title</label>
-            <input type="text" id="task-title" placeholder="Enter task title" required>
+            <input type="text" id="task-title" placeholder="Enter task title">
             <label for="task-desc">Description</label>
             <textarea id="task-desc" placeholder="Enter task description"></textarea>
             <label for="task-priority">Priority</label>
@@ -73,7 +73,7 @@
             </div>
             <span id="progress-text">0% Complete</span>
         </div>
-        <div id="tasks" class="tasks"></div>
+        <div id="tasks" class="tasks" aria-live="polite" aria-label="Liste des tâches"></div>
     </div>
     <script src="script.js"></script>
 </body>
