@@ -628,3 +628,16 @@ body.dark-mode .empty-state p {
     vertical-align: middle;
     margin-left: 4px;
 }
+
+/* Badge rappel */
+.reminder-badge {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #4299e1;
+    background: rgba(66, 153, 225, 0.12);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 6px;
+    vertical-align: middle;
+}

@@ -52,6 +52,14 @@
             </select>
             <label for="task-due-date">Due Date</label>
             <input type="date" id="task-due-date">
+            <label for="task-reminder">Reminder</label>
+            <select id="task-reminder">
+                <option value="none">No reminder</option>
+                <option value="15min">15 minutes before</option>
+                <option value="1hour">1 hour before</option>
+                <option value="morning">Morning of due date (9:00)</option>
+                <option value="day_before">Day before (9:00)</option>
+            </select>
             <button id="add-task-btn" class="add-btn">Add Task</button>
         </div>
         <div class="filters">
