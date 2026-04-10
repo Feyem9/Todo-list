@@ -1,0 +1,11 @@
+name = "todo-notification-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Cron : vérifie les rappels toutes les heures
+[triggers]
+crons = ["0 * * * *"]
+
+# Variables d'environnement (les secrets seront ajoutés via wrangler secret)
+[vars]
+FIREBASE_PROJECT_ID = "todo-list-29d44"
