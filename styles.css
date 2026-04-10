@@ -616,3 +616,15 @@ body.dark-mode .empty-state p {
     border-color: #e53e3e !important;
     box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.2) !important;
 }
+
+/* Tâche en attente de synchronisation offline */
+.task.pending-sync {
+    border-left: 4px solid #dd6b20;
+    opacity: 0.85;
+}
+
+.sync-badge {
+    font-size: 0.85rem;
+    vertical-align: middle;
+    margin-left: 4px;
+}

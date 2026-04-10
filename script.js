@@ -2,21 +2,107 @@ let tasks = [];
 let currentSort = 'priority';
 let isDarkMode = false;
 
+// ---------------------------------------------------------------------------
+// Queue offline — tâches en attente de sync vers Firestore
+// ---------------------------------------------------------------------------
+
+const OFFLINE_QUEUE_KEY = 'offline_queue';
+const LOCAL_TASKS_KEY   = 'local_tasks';
+
+function getOfflineQueue() {
+    try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }
+    catch { return []; }
+}
+
+function saveOfflineQueue(queue) {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+}
+
+function isOnline() {
+    return navigator.onLine;
+}
+
+// Synchronise la queue locale vers Firestore dès qu'on est en ligne
+async function syncOfflineQueue() {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) return;
+
+    const remaining = [];
+    for (const op of queue) {
+        try {
+            if (op.type === 'add') {
+                const firestoreId = await window.fbAddTask(op.task);
+                // Mettre à jour le firestoreId dans le tableau local
+                const t = tasks.find(t => t.id === op.task.id);
+                if (t) t.firestoreId = firestoreId;
+            } else if (op.type === 'update') {
+                await window.fbUpdateTask(op.firestoreId, op.data);
+            } else if (op.type === 'delete') {
+                await window.fbDeleteTask(op.firestoreId);
+            }
+        } catch (e) {
+            // Toujours offline ou erreur — on garde l'opération en queue
+            remaining.push(op);
+        }
+    }
+
+    saveOfflineQueue(remaining);
+    // Sauvegarder l'état local mis à jour
+    localStorage.setItem(LOCAL_TASKS_KEY, JSON.stringify(tasks));
+
+    if (remaining.length === 0) {
+        showSyncBanner('Synchronisation terminée ✓');
+    }
+}
+
+// Bannière de statut connexion
+function showSyncBanner(message, isError = false) {
+    let banner = document.getElementById('sync-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'sync-banner';
+        banner.style.cssText = `
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 10px 24px; border-radius: 30px; font-size: 14px; font-weight: 600;
+            color: white; z-index: 9999; transition: opacity 0.4s ease;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        `;
+        document.body.appendChild(banner);
+    }
+    banner.style.background = isError ? '#e53e3e' : '#38a169';
+    banner.textContent = message;
+    banner.style.opacity = '1';
+    setTimeout(() => { banner.style.opacity = '0'; }, 3000);
+}
+
+// Écouter les changements de connexion
+window.addEventListener('online', () => {
+    showSyncBanner('Connexion rétablie — synchronisation...');
+    syncOfflineQueue().then(() => renderTasks());
+});
+
+window.addEventListener('offline', () => {
+    showSyncBanner('Hors ligne — les tâches seront synchronisées à la reconnexion', true);
+});
+
+// ---------------------------------------------------------------------------
+// Utilitaires
+// ---------------------------------------------------------------------------
+
 function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // ---------------------------------------------------------------------------
-// Persistance — Firestore (via window.fb* exposés par firebase.js)
+// Persistance
 // ---------------------------------------------------------------------------
 
 async function loadTasks() {
-    // Dark mode (toujours depuis localStorage — pas de BD nécessaire)
     const darkModeStored = localStorage.getItem('darkMode');
     if (darkModeStored === 'true') {
         isDarkMode = true;
@@ -24,25 +110,23 @@ async function loadTasks() {
         document.getElementById('dark-mode-btn').textContent = '☀️ Light Mode';
     }
 
-    try {
-        tasks = await window.fbLoadTasks();
-    } catch (e) {
-        console.error('Erreur chargement Firestore, fallback localStorage', e);
+    if (isOnline()) {
         try {
-            tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
-        } catch (_) {
-            tasks = [];
+            tasks = await window.fbLoadTasks();
+            // Mettre à jour le cache local
+            localStorage.setItem(LOCAL_TASKS_KEY, JSON.stringify(tasks));
+        } catch (e) {
+            console.error('Erreur Firestore, fallback local', e);
+            tasks = JSON.parse(localStorage.getItem(LOCAL_TASKS_KEY) || '[]');
         }
+    } else {
+        // Offline — charger depuis le cache local
+        tasks = JSON.parse(localStorage.getItem(LOCAL_TASKS_KEY) || '[]');
+        showSyncBanner('Mode hors ligne — données locales chargées', true);
     }
 
     sortTasks();
     renderTasks();
-}
-
-async function saveTasks() {
-    // Le dark mode reste en localStorage
-    localStorage.setItem('darkMode', isDarkMode);
-    // Les tâches sont sauvegardées individuellement via fbAddTask / fbUpdateTask / fbDeleteTask
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +176,7 @@ function renderTasks(filteredTasks = tasks) {
     const tasksContainer = document.getElementById('tasks');
     tasksContainer.innerHTML = '';
     updateStats();
+
     if (filteredTasks.length === 0) {
         const emptyEl = document.createElement('div');
         emptyEl.className = 'empty-state';
@@ -99,22 +184,21 @@ function renderTasks(filteredTasks = tasks) {
         tasksContainer.appendChild(emptyEl);
         return;
     }
+
     filteredTasks.forEach((task, index) => {
         const taskEl = document.createElement('div');
-        taskEl.className = `task ${task.status === 'completed' ? 'completed' : ''}`;
+        taskEl.className = `task ${task.status === 'completed' ? 'completed' : ''} ${!task.firestoreId ? 'pending-sync' : ''}`;
         taskEl.dataset.id = task.id;
 
         const cardContent = document.createElement('div');
         cardContent.innerHTML = `
-            <h3>${escapeHtml(task.title)}</h3>
+            <h3>${escapeHtml(task.title)}${!task.firestoreId ? ' <span class="sync-badge" title="En attente de synchronisation">⏳</span>' : ''}</h3>
             <p>${escapeHtml(task.desc)}</p>
             <p class="priority ${task.priority}"><span class="priority-icon" aria-hidden="true"></span>${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} Priority</p>
             <p class="due-date">Due: ${task.dueDate || 'No due date'}</p>
             <p class="status ${task.status}">${task.status.charAt(0).toUpperCase() + task.status.slice(1)}</p>
         `;
-        while (cardContent.firstChild) {
-            taskEl.appendChild(cardContent.firstChild);
-        }
+        while (cardContent.firstChild) taskEl.appendChild(cardContent.firstChild);
 
         const taskButtons = document.createElement('div');
         taskButtons.className = 'task-buttons';
@@ -148,7 +232,7 @@ function renderTasks(filteredTasks = tasks) {
 }
 
 // ---------------------------------------------------------------------------
-// CRUD
+// CRUD avec support offline
 // ---------------------------------------------------------------------------
 
 async function addTask() {
@@ -167,21 +251,32 @@ async function addTask() {
 
     const taskData = {
         id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-        title,
-        desc,
-        priority,
-        dueDate,
-        status: 'pending'
+        title, desc, priority, dueDate,
+        status: 'pending',
+        firestoreId: null
     };
 
-    try {
-        const firestoreId = await window.fbAddTask(taskData);
-        taskData.firestoreId = firestoreId;
-    } catch (e) {
-        console.error('Erreur ajout Firestore', e);
+    if (isOnline()) {
+        try {
+            const firestoreId = await window.fbAddTask(taskData);
+            taskData.firestoreId = firestoreId;
+        } catch (e) {
+            // Échec réseau — mettre en queue
+            const queue = getOfflineQueue();
+            queue.push({ type: 'add', task: taskData });
+            saveOfflineQueue(queue);
+            showSyncBanner('Sauvegardé localement — sera synchronisé en ligne', true);
+        }
+    } else {
+        // Offline — mettre en queue directement
+        const queue = getOfflineQueue();
+        queue.push({ type: 'add', task: taskData });
+        saveOfflineQueue(queue);
+        showSyncBanner('Hors ligne — tâche sauvegardée localement ⏳', true);
     }
 
     tasks.push(taskData);
+    localStorage.setItem(LOCAL_TASKS_KEY, JSON.stringify(tasks));
     sortTasks();
     renderTasks();
 
@@ -202,14 +297,31 @@ function deleteTask(id) {
 
     setTimeout(async () => {
         const task = tasks.find(t => String(t.id) === String(id));
-        if (task && task.firestoreId) {
-            try {
-                await window.fbDeleteTask(task.firestoreId);
-            } catch (e) {
-                console.error('Erreur suppression Firestore', e);
+
+        if (task) {
+            if (task.firestoreId) {
+                if (isOnline()) {
+                    try {
+                        await window.fbDeleteTask(task.firestoreId);
+                    } catch (e) {
+                        const queue = getOfflineQueue();
+                        queue.push({ type: 'delete', firestoreId: task.firestoreId });
+                        saveOfflineQueue(queue);
+                    }
+                } else {
+                    const queue = getOfflineQueue();
+                    queue.push({ type: 'delete', firestoreId: task.firestoreId });
+                    saveOfflineQueue(queue);
+                }
+            } else {
+                // Tâche jamais synchronisée — retirer de la queue offline aussi
+                const queue = getOfflineQueue().filter(op => op.task?.id !== id);
+                saveOfflineQueue(queue);
             }
         }
+
         tasks = tasks.filter(t => String(t.id) !== String(id));
+        localStorage.setItem(LOCAL_TASKS_KEY, JSON.stringify(tasks));
         renderTasks();
     }, 300);
 }
@@ -223,17 +335,28 @@ function toggleSort() {
 
 async function toggleComplete(id) {
     const task = tasks.find(t => String(t.id) === String(id));
-    if (task) {
-        task.status = task.status === 'completed' ? 'pending' : 'completed';
-        if (task.firestoreId) {
+    if (!task) return;
+
+    task.status = task.status === 'completed' ? 'pending' : 'completed';
+
+    if (task.firestoreId) {
+        if (isOnline()) {
             try {
                 await window.fbUpdateTask(task.firestoreId, { status: task.status });
             } catch (e) {
-                console.error('Erreur mise à jour Firestore', e);
+                const queue = getOfflineQueue();
+                queue.push({ type: 'update', firestoreId: task.firestoreId, data: { status: task.status } });
+                saveOfflineQueue(queue);
             }
+        } else {
+            const queue = getOfflineQueue();
+            queue.push({ type: 'update', firestoreId: task.firestoreId, data: { status: task.status } });
+            saveOfflineQueue(queue);
         }
-        renderTasks();
     }
+
+    localStorage.setItem(LOCAL_TASKS_KEY, JSON.stringify(tasks));
+    renderTasks();
 }
 
 function filterTasks() {
@@ -242,7 +365,7 @@ function filterTasks() {
     const dueDate = document.getElementById('filter-due-date').value;
     const status = document.getElementById('filter-status').value;
 
-    let filtered = tasks.filter(task => {
+    const filtered = tasks.filter(task => {
         const matchesSearch = task.title.toLowerCase().includes(search) || task.desc.toLowerCase().includes(search);
         const matchesPriority = !priority || task.priority === priority;
         const matchesDueDate = !dueDate || task.dueDate === dueDate;
@@ -264,7 +387,6 @@ document.getElementById('filter-status').addEventListener('change', filterTasks)
 document.getElementById('sort-btn').addEventListener('click', toggleSort);
 document.getElementById('dark-mode-btn').addEventListener('click', toggleDarkMode);
 
-// Démarrage — attendre que firebase.js soit prêt
 window.addEventListener('load', () => {
     loadTasks();
 });
