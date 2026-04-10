@@ -11,29 +11,43 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-function loadTasks() {
-    const stored = localStorage.getItem('tasks');
-    if (stored) {
-        try {
-            tasks = JSON.parse(stored);
-        } catch (e) {
-            tasks = [];
-        }
-    }
+// ---------------------------------------------------------------------------
+// Persistance — Firestore (via window.fb* exposés par firebase.js)
+// ---------------------------------------------------------------------------
+
+async function loadTasks() {
+    // Dark mode (toujours depuis localStorage — pas de BD nécessaire)
     const darkModeStored = localStorage.getItem('darkMode');
     if (darkModeStored === 'true') {
         isDarkMode = true;
         document.body.classList.add('dark-mode');
         document.getElementById('dark-mode-btn').textContent = '☀️ Light Mode';
     }
+
+    try {
+        tasks = await window.fbLoadTasks();
+    } catch (e) {
+        console.error('Erreur chargement Firestore, fallback localStorage', e);
+        try {
+            tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+        } catch (_) {
+            tasks = [];
+        }
+    }
+
     sortTasks();
     renderTasks();
 }
 
-function saveTasks() {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
+async function saveTasks() {
+    // Le dark mode reste en localStorage
     localStorage.setItem('darkMode', isDarkMode);
+    // Les tâches sont sauvegardées individuellement via fbAddTask / fbUpdateTask / fbDeleteTask
 }
+
+// ---------------------------------------------------------------------------
+// Stats & tri
+// ---------------------------------------------------------------------------
 
 function updateStats() {
     const total = tasks.length;
@@ -67,8 +81,12 @@ function toggleDarkMode() {
     isDarkMode = !isDarkMode;
     document.body.classList.toggle('dark-mode', isDarkMode);
     document.getElementById('dark-mode-btn').textContent = isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode';
-    saveTasks();
+    localStorage.setItem('darkMode', isDarkMode);
 }
+
+// ---------------------------------------------------------------------------
+// Rendu
+// ---------------------------------------------------------------------------
 
 function renderTasks(filteredTasks = tasks) {
     const tasksContainer = document.getElementById('tasks');
@@ -86,7 +104,6 @@ function renderTasks(filteredTasks = tasks) {
         taskEl.className = `task ${task.status === 'completed' ? 'completed' : ''}`;
         taskEl.dataset.id = task.id;
 
-        // Card content (no buttons)
         const cardContent = document.createElement('div');
         cardContent.innerHTML = `
             <h3>${escapeHtml(task.title)}</h3>
@@ -99,7 +116,6 @@ function renderTasks(filteredTasks = tasks) {
             taskEl.appendChild(cardContent.firstChild);
         }
 
-        // Buttons via createElement
         const taskButtons = document.createElement('div');
         taskButtons.className = 'task-buttons';
 
@@ -124,7 +140,6 @@ function renderTasks(filteredTasks = tasks) {
         taskEl.appendChild(taskButtons);
         tasksContainer.appendChild(taskEl);
 
-        // Stagger animation
         setTimeout(() => {
             taskEl.style.opacity = '1';
             taskEl.style.transform = 'translateY(0) scale(1)';
@@ -132,11 +147,16 @@ function renderTasks(filteredTasks = tasks) {
     });
 }
 
-function addTask() {
+// ---------------------------------------------------------------------------
+// CRUD
+// ---------------------------------------------------------------------------
+
+async function addTask() {
     const title = document.getElementById('task-title').value.trim();
     const desc = document.getElementById('task-desc').value.trim();
     const priority = document.getElementById('task-priority').value;
     const dueDate = document.getElementById('task-due-date').value;
+
     if (!title) {
         const titleInput = document.getElementById('task-title');
         titleInput.classList.add('input-error');
@@ -144,7 +164,8 @@ function addTask() {
         setTimeout(() => titleInput.classList.remove('input-error'), 2000);
         return;
     }
-    const task = {
+
+    const taskData = {
         id: Date.now() + '_' + Math.random().toString(36).slice(2, 7),
         title,
         desc,
@@ -152,10 +173,18 @@ function addTask() {
         dueDate,
         status: 'pending'
     };
-    tasks.push(task);
-    saveTasks();
+
+    try {
+        const firestoreId = await window.fbAddTask(taskData);
+        taskData.firestoreId = firestoreId;
+    } catch (e) {
+        console.error('Erreur ajout Firestore', e);
+    }
+
+    tasks.push(taskData);
+    sortTasks();
     renderTasks();
-    // Clear form
+
     document.getElementById('task-title').value = '';
     document.getElementById('task-desc').value = '';
     document.getElementById('task-due-date').value = '';
@@ -169,10 +198,18 @@ function confirmDelete(id) {
 
 function deleteTask(id) {
     const taskEl = document.querySelector(`.task[data-id="${id}"]`);
-    taskEl.classList.add('fade-out');
-    setTimeout(() => {
+    if (taskEl) taskEl.classList.add('fade-out');
+
+    setTimeout(async () => {
+        const task = tasks.find(t => String(t.id) === String(id));
+        if (task && task.firestoreId) {
+            try {
+                await window.fbDeleteTask(task.firestoreId);
+            } catch (e) {
+                console.error('Erreur suppression Firestore', e);
+            }
+        }
         tasks = tasks.filter(t => String(t.id) !== String(id));
-        saveTasks();
         renderTasks();
     }, 300);
 }
@@ -184,11 +221,17 @@ function toggleSort() {
     renderTasks();
 }
 
-function toggleComplete(id) {
+async function toggleComplete(id) {
     const task = tasks.find(t => String(t.id) === String(id));
     if (task) {
         task.status = task.status === 'completed' ? 'pending' : 'completed';
-        saveTasks();
+        if (task.firestoreId) {
+            try {
+                await window.fbUpdateTask(task.firestoreId, { status: task.status });
+            } catch (e) {
+                console.error('Erreur mise à jour Firestore', e);
+            }
+        }
         renderTasks();
     }
 }
@@ -209,6 +252,10 @@ function filterTasks() {
     renderTasks(filtered);
 }
 
+// ---------------------------------------------------------------------------
+// Event listeners
+// ---------------------------------------------------------------------------
+
 document.getElementById('add-task-btn').addEventListener('click', addTask);
 document.getElementById('search').addEventListener('input', filterTasks);
 document.getElementById('filter-priority').addEventListener('change', filterTasks);
@@ -217,5 +264,7 @@ document.getElementById('filter-status').addEventListener('change', filterTasks)
 document.getElementById('sort-btn').addEventListener('click', toggleSort);
 document.getElementById('dark-mode-btn').addEventListener('click', toggleDarkMode);
 
-// Load and render on start
-loadTasks();
+// Démarrage — attendre que firebase.js soit prêt
+window.addEventListener('load', () => {
+    loadTasks();
+});

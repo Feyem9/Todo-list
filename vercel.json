@@ -12,11 +12,15 @@
         {
             "src": "script.js",
             "use": "@vercel/static"
+        },
+        {
+            "src": "firebase.js",
+            "use": "@vercel/static"
         }
     ],
     "routes": [
         {
-            "src": "/(styles\\.css|script\\.js)",
+            "src": "/(styles\\.css|script\\.js|firebase\\.js)",
             "dest": "/$1"
         },
         {
