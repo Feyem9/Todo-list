@@ -490,26 +490,113 @@ body.dark-mode .empty-state p {
 /* Responsive Design */
 @media (max-width: 768px) {
     .container {
-        padding: 15px;
+        padding: 12px;
     }
 
     h1 {
-        font-size: 2.2rem;
+        font-size: 1.9rem;
+    }
+
+    .stats {
+        gap: 12px;
+    }
+
+    .stat {
+        padding: 10px 16px;
+        flex: 1;
+    }
+
+    .stat-number {
+        font-size: 1.6rem;
+    }
+
+    .controls {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .control-btn {
+        flex: 1;
+        min-width: 120px;
+        padding: 10px 16px;
+        font-size: 13px;
     }
 
     .add-task,
     .filters {
         grid-template-columns: 1fr;
-        padding: 20px;
+        padding: 16px;
+        gap: 10px;
+    }
+
+    .add-task label,
+    .filters label {
+        margin-top: 4px;
+    }
+
+    .add-task button.add-btn {
+        width: 100%;
+        padding: 14px;
+        font-size: 15px;
+        margin-top: 4px;
     }
 
     .tasks {
         grid-template-columns: 1fr;
-        gap: 20px;
+        gap: 16px;
     }
 
     .task {
-        padding: 20px;
+        padding: 16px;
+    }
+
+    .task h3 {
+        font-size: 1.15rem;
+    }
+
+    .task-buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .task-buttons button {
+        flex: 1;
+        min-width: 120px;
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    .stats {
+        gap: 8px;
+    }
+
+    .stat {
+        padding: 8px 10px;
+    }
+
+    .stat-number {
+        font-size: 1.4rem;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+    }
+
+    .add-task,
+    .filters {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .task {
+        padding: 14px;
+        border-radius: 12px;
     }
 
     .task-buttons {
@@ -518,30 +605,10 @@ body.dark-mode .empty-state p {
 
     .task-buttons button {
         width: 100%;
-        margin-bottom: 8px;
-    }
-}
-
-@media (max-width: 480px) {
-    h1 {
-        font-size: 1.8rem;
     }
 
-    .add-task,
-    .filters {
-        padding: 15px;
-    }
-
-    .task {
-        padding: 15px;
-    }
-
-    .stat {
-        padding: 10px 15px;
-    }
-
-    .stat-number {
-        font-size: 1.8rem;
+    .progress-section {
+        padding: 16px;
     }
 }
 

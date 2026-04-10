@@ -1,27 +1,22 @@
 {
     "version": 2,
     "builds": [
-        {
-            "src": "index.html",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "styles.css",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "script.js",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "firebase.js",
-            "use": "@vercel/static"
-        }
+        { "src": "index.html", "use": "@vercel/static" },
+        { "src": "styles.css", "use": "@vercel/static" },
+        { "src": "script.js", "use": "@vercel/static" },
+        { "src": "firebase.js", "use": "@vercel/static" },
+        { "src": "sw.js", "use": "@vercel/static" },
+        { "src": "manifest.json", "use": "@vercel/static" },
+        { "src": "icons/**", "use": "@vercel/static" }
     ],
     "routes": [
         {
-            "src": "/(styles\\.css|script\\.js|firebase\\.js)",
+            "src": "/(styles\\.css|script\\.js|firebase\\.js|sw\\.js|manifest\\.json)",
             "dest": "/$1"
+        },
+        {
+            "src": "/icons/(.*)",
+            "dest": "/icons/$1"
         },
         {
             "src": "/(.*)",
